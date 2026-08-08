@@ -13,8 +13,17 @@
     --t-mail: #1a7f37; --t-other: #6e7781;
     --link: #0969da; --today: #fff8c5;
   }
+  /* 수동 토글(data-theme)이 시스템 설정보다 우선 — 다크 변수 블록은 두 곳에 중복 선언 */
+  :root[data-theme="dark"] {
+    --bg: #0d1117; --surface: #161b22; --border: #30363d;
+    --ink: #e6edf3; --ink-2: #9198a1; --ink-3: #6e7681;
+    --accent: #58a6ff; --good: #3fb950; --warn: #f0883e; --wait: #8b949e;
+    --t-daily: #58a6ff; --t-closing: #a371f7; --t-check: #f0883e;
+    --t-mail: #3fb950; --t-other: #8b949e;
+    --link: #58a6ff; --today: #3a3520;
+  }
   @media (prefers-color-scheme: dark) {
-    :root {
+    :root:not([data-theme="light"]) {
       --bg: #0d1117; --surface: #161b22; --border: #30363d;
       --ink: #e6edf3; --ink-2: #9198a1; --ink-3: #6e7681;
       --accent: #58a6ff; --good: #3fb950; --warn: #f0883e; --wait: #8b949e;
@@ -30,8 +39,12 @@
           "Noto Sans KR", system-ui, sans-serif;
   }
   .wrap { max-width: 1080px; margin: 0 auto; padding: 24px 16px 64px; }
+  header { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
   header h1 { font-size: 20px; margin: 0 0 4px; }
   header .sub { color: var(--ink-2); font-size: 13px; }
+  .theme-btn { flex: none; background: var(--surface); border: 1px solid var(--border);
+               color: var(--ink); border-radius: 8px; padding: 6px 12px; font-size: 13px;
+               cursor: pointer; }
   h2 { font-size: 16px; margin: 36px 0 12px; }
   a { color: var(--link); text-decoration: none; }
   a:hover { text-decoration: underline; }
@@ -95,16 +108,61 @@
                      white-space: pre-wrap; font: 12.5px/1.7 inherit; color: var(--ink-2); }
   .muted { color: var(--ink-2); }
   footer { margin-top: 48px; font-size: 12px; color: var(--ink-3); }
+
+  .ins-body { line-height: 1.75; }
+  .ins-body p { margin: 8px 0; }
+  .ins-body ul { margin: 6px 0 12px; padding-left: 20px; }
+  .ins-body li { margin: 4px 0; }
+  .ins-h { font-weight: 700; font-size: 15px; margin: 14px 0 6px; padding-bottom: 4px;
+           border-bottom: 2px solid var(--border); }
+  .ins-h:first-child { margin-top: 2px; }
+  .ins-foot { font-size: 12px; color: var(--ink-3); margin-top: 10px; }
+
+  details.repsec { margin-top: 10px; border: 1px solid var(--border); border-radius: 10px;
+                   background: var(--surface); }
+  details.repsec > summary { cursor: pointer; padding: 9px 14px; font-weight: 700;
+                             font-size: 13px; }
+  details.repsec .tbl-wrap { border: 0; border-top: 1px solid var(--border);
+                             border-radius: 0 0 10px 10px; }
+
+  /* ---- 모바일 ---- */
+  @media (max-width: 640px) {
+    .wrap { padding: 14px 10px 48px; }
+    header { flex-wrap: wrap; }
+    header h1 { font-size: 17px; }
+    .tiles { grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 14px; }
+    .tile { padding: 10px 12px; }
+    .tile .v { font-size: 16px; }
+    h2 { margin: 26px 0 10px; }
+    .cal { gap: 2px; }
+    .cal .day { min-height: 52px; padding: 3px 4px; border-radius: 6px; }
+    .cal .b { padding: 2px 3px; }
+    .cal .keep { position: static; display: block; margin-top: 2px; font-size: 10px; }
+    .cal .dnum { font-size: 11px; }
+    th, td { padding: 6px 7px; }
+    .tbl-wrap table { min-width: 560px; }
+    details.mail summary { font-size: 12px; padding: 7px 10px; }
+    .evt { flex-wrap: wrap; }
+  }
 </style>
 </head>
 <body>
 <div class="wrap">
   <header>
-    <h1>QSR 뉴스 파이프라인 모니터</h1>
-    <div class="sub" id="subline"></div>
+    <div>
+      <h1>QSR 뉴스 파이프라인 모니터</h1>
+      <div class="sub" id="subline"></div>
+    </div>
+    <button class="theme-btn" id="themeBtn" aria-label="테마 전환">🌙 다크</button>
   </header>
 
   <div class="tiles" id="tiles"></div>
+
+  <h2>인사이트 (메일 요약)</h2>
+  <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap">
+    <select id="insSel"></select>
+  </div>
+  <div class="panel ins-body" id="insBody" style="margin-top:10px"></div>
 
   <h2>작업 스케줄</h2>
   <div class="tbl-wrap"><table id="sched"></table></div>
@@ -140,6 +198,23 @@
 <script>
 "use strict";
 const D = window.DASH;
+
+// ---- 테마 토글 (수동 선택이 시스템 설정보다 우선, localStorage 저장) ----
+(function theme() {
+  const btn = document.getElementById("themeBtn");
+  const saved = localStorage.getItem("dash-theme");
+  if (saved) document.documentElement.dataset.theme = saved;
+  const current = () => document.documentElement.dataset.theme ||
+    (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+  const label = () => { btn.textContent = current() === "dark" ? "☀️ 라이트" : "🌙 다크"; };
+  btn.onclick = () => {
+    const next = current() === "dark" ? "light" : "dark";
+    document.documentElement.dataset.theme = next;
+    localStorage.setItem("dash-theme", next);
+    label();
+  };
+  label();
+})();
 const TYPE_META = {
   daily:   { label: "증분",  color: "var(--t-daily)"  },
   closing: { label: "마감",  color: "var(--t-closing)" },
@@ -188,6 +263,41 @@ for (const m of D.mails) {
           next ? `${next.when.slice(5, 16).replace("T", " ")} KST` : ""]);
   document.getElementById("tiles").innerHTML = t.map(([k, v, d]) =>
     `<div class="tile"><div class="k">${esc(k)}</div><div class="v">${v}</div><div class="d">${d}</div></div>`).join("");
+})();
+
+// ---- 인사이트 (메일 본문을 서식대로 렌더링: ■ 제목 / - 불릿 / **볼드** / * 각주) ----
+function insightHtml(body) {
+  const out = []; let bullets = [];
+  const inline = s => esc(s).replace(/\*\*(.+?)\*\*/g, "<b>$1</b>");
+  const flush = () => {
+    if (bullets.length) { out.push(`<ul>${bullets.map(b => `<li>${b}</li>`).join("")}</ul>`); bullets = []; }
+  };
+  for (let line of String(body || "").split(/\r?\n/)) {
+    line = line.trimEnd();
+    if (line.startsWith("- ")) {
+      const item = line.slice(2);
+      const m = item.match(/^(.{1,24}?)\s*\|\s*(.+)$/);
+      bullets.push(m ? `<b>${inline(m[1])}</b> · ${inline(m[2])}` : inline(item));
+      continue;
+    }
+    flush();
+    if (line.startsWith("■")) out.push(`<div class="ins-h">${inline(line.replace(/^■\s*/, ""))}</div>`);
+    else if (line.startsWith("*")) out.push(`<div class="ins-foot">${inline(line)}</div>`);
+    else if (line) out.push(`<p>${inline(line)}</p>`);
+  }
+  flush();
+  return out.join("") || `<p class="muted">본문 없음</p>`;
+}
+
+(function insights() {
+  const sorted = [...D.mails].sort((a, b) => (b.sent_at || "").localeCompare(a.sent_at || ""));
+  const sel = document.getElementById("insSel");
+  sel.innerHTML = sorted.map((m, i) =>
+    `<option value="${i}">${esc(m.subject)}${m.type === "weekly" ? " (주간)" : ""}</option>`).join("");
+  const render = i => { document.getElementById("insBody").innerHTML = insightHtml(sorted[i].body); };
+  sel.onchange = () => render(+sel.value);
+  if (sorted.length) render(0);
+  else document.getElementById("insBody").innerHTML = `<p class="muted">인사이트 없음</p>`;
 })();
 
 // ---- 스케줄 슬롯 계산 ----
@@ -346,15 +456,17 @@ function renderReport(i) {
     return;
   }
   body.innerHTML = Object.entries(r.sections).map(([name, rows]) => `
-    <div class="sec-title">[${esc(name)}] ${rows.length}건</div>
-    <div class="tbl-wrap"><table>
-      <tr><th>Date</th><th>Brand</th><th>Category</th><th>Title</th><th>Comment</th></tr>
-      ${rows.map(x => `<tr>
-        <td class="num">${esc(x.date)}</td><td>${esc(x.brand)}</td><td>${esc(x.cat)}</td>
-        <td>${x.link ? `<a href="${esc(x.link)}" target="_blank" rel="noopener">${esc(x.title)}</a>` : esc(x.title)}</td>
-        <td class="muted">${esc(x.comment)}</td>
-      </tr>`).join("")}
-    </table></div>`).join("");
+    <details class="repsec">
+      <summary>[${esc(name)}] ${rows.length}건 — 펼쳐보기</summary>
+      <div class="tbl-wrap"><table>
+        <tr><th>Date</th><th>Brand</th><th>Category</th><th>Title</th><th>Comment</th></tr>
+        ${rows.map(x => `<tr>
+          <td class="num">${esc(x.date)}</td><td>${esc(x.brand)}</td><td>${esc(x.cat)}</td>
+          <td>${x.link ? `<a href="${esc(x.link)}" target="_blank" rel="noopener">${esc(x.title)}</a>` : esc(x.title)}</td>
+          <td class="muted">${esc(x.comment)}</td>
+        </tr>`).join("")}
+      </table></div>
+    </details>`).join("");
 }
 
 // ---- 메일 현황 ----
