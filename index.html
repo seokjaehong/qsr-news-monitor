@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>QSR 뉴스 파이프라인 모니터</title>
+<style>
+  :root {
+    --bg: #ffffff; --surface: #f6f8fa; --border: #d8dee4;
+    --ink: #1f2328; --ink-2: #57606a; --ink-3: #818b98;
+    --accent: #0969da; --good: #1a7f37; --warn: #bc4c00; --wait: #6e7781;
+    --t-daily: #0969da; --t-closing: #8250df; --t-check: #bc4c00;
+    --t-mail: #1a7f37; --t-other: #6e7781;
+    --link: #0969da; --today: #fff8c5;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0d1117; --surface: #161b22; --border: #30363d;
+      --ink: #e6edf3; --ink-2: #9198a1; --ink-3: #6e7681;
+      --accent: #58a6ff; --good: #3fb950; --warn: #f0883e; --wait: #8b949e;
+      --t-daily: #58a6ff; --t-closing: #a371f7; --t-check: #f0883e;
+      --t-mail: #3fb950; --t-other: #8b949e;
+      --link: #58a6ff; --today: #3a3520;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font: 14px/1.6 -apple-system, "Apple SD Gothic Neo", "Malgun Gothic",
+          "Noto Sans KR", system-ui, sans-serif;
+  }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 24px 16px 64px; }
+  header h1 { font-size: 20px; margin: 0 0 4px; }
+  header .sub { color: var(--ink-2); font-size: 13px; }
+  h2 { font-size: 16px; margin: 36px 0 12px; }
+  a { color: var(--link); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+
+  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-top: 20px; }
+  .tile { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; }
+  .tile .k { font-size: 12px; color: var(--ink-2); }
+  .tile .v { font-size: 20px; font-weight: 700; margin-top: 2px; }
+  .tile .d { font-size: 12px; color: var(--ink-2); margin-top: 2px; }
+
+  table { border-collapse: collapse; width: 100%; font-size: 13px; }
+  th, td { text-align: left; padding: 7px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  th { color: var(--ink-2); font-weight: 600; white-space: nowrap; }
+  .tbl-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 10px; }
+  .tbl-wrap table { min-width: 640px; }
+  .num { text-align: right; font-variant-numeric: tabular-nums; }
+
+  .chip { display: inline-flex; align-items: center; gap: 5px; padding: 1px 8px;
+          border: 1px solid var(--border); border-radius: 999px; font-size: 12px;
+          background: var(--bg); white-space: nowrap; color: var(--ink); }
+  .dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+  .st-good { color: var(--good); font-weight: 600; }
+  .st-warn { color: var(--warn); font-weight: 600; }
+  .st-wait { color: var(--wait); font-weight: 600; }
+  .st-run  { color: var(--accent); font-weight: 600; }
+
+  .cal-head { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+  .cal-head b { font-size: 15px; min-width: 110px; text-align: center; }
+  .cal-head button { background: var(--surface); border: 1px solid var(--border);
+                     color: var(--ink); border-radius: 6px; padding: 3px 10px; cursor: pointer; }
+  .cal { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+  .cal .dow { text-align: center; font-size: 12px; color: var(--ink-2); padding: 2px 0; }
+  .cal .day { min-height: 74px; border: 1px solid var(--border); border-radius: 8px;
+              padding: 5px 7px; background: var(--surface); cursor: pointer; position: relative; }
+  .cal .day.out { opacity: .35; }
+  .cal .day.today { background: var(--today); }
+  .cal .day.sel { outline: 2px solid var(--accent); }
+  .cal .dnum { font-size: 12px; color: var(--ink-2); }
+  .cal .badges { display: flex; flex-wrap: wrap; gap: 3px; margin-top: 4px; }
+  .cal .b { font-size: 11px; line-height: 1; padding: 3px 5px; border-radius: 5px;
+            background: var(--bg); border: 1px solid var(--border); }
+  .cal .keep { position: absolute; right: 7px; bottom: 5px; font-size: 11px; color: var(--ink-3); }
+  .legend { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 10px; font-size: 12px; color: var(--ink-2); }
+  .legend span { display: inline-flex; align-items: center; gap: 5px; }
+
+  .panel { margin-top: 14px; border: 1px solid var(--border); border-radius: 10px;
+           background: var(--surface); padding: 12px 16px; }
+  .panel h3 { margin: 0 0 8px; font-size: 14px; }
+  .evt { display: flex; gap: 8px; align-items: baseline; padding: 3px 0; font-size: 13px; }
+  .evt .t { color: var(--ink-3); font-variant-numeric: tabular-nums; flex: none; }
+  .evt code { color: var(--ink-3); font-size: 12px; }
+
+  select { background: var(--surface); color: var(--ink); border: 1px solid var(--border);
+           border-radius: 6px; padding: 5px 8px; font-size: 13px; max-width: 100%; }
+  .sec-title { margin: 18px 0 8px; font-weight: 700; font-size: 13px; color: var(--ink-2); }
+  details.mail { border: 1px solid var(--border); border-radius: 8px; margin-top: 6px;
+                 background: var(--surface); }
+  details.mail summary { cursor: pointer; padding: 8px 12px; font-size: 13px; display: flex;
+                         flex-wrap: wrap; gap: 8px; align-items: center; }
+  details.mail pre { margin: 0; padding: 10px 14px; border-top: 1px solid var(--border);
+                     white-space: pre-wrap; font: 12.5px/1.7 inherit; color: var(--ink-2); }
+  .muted { color: var(--ink-2); }
+  footer { margin-top: 48px; font-size: 12px; color: var(--ink-3); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>QSR 뉴스 파이프라인 모니터</h1>
+    <div class="sub" id="subline"></div>
+  </header>
+
+  <div class="tiles" id="tiles"></div>
+
+  <h2>작업 스케줄</h2>
+  <div class="tbl-wrap"><table id="sched"></table></div>
+
+  <h2>수집 달력</h2>
+  <div class="cal-head">
+    <button id="prevM" aria-label="이전 달">◀</button>
+    <b id="calTitle"></b>
+    <button id="nextM" aria-label="다음 달">▶</button>
+  </div>
+  <div class="cal" id="cal"></div>
+  <div class="legend" id="calLegend"></div>
+  <div class="panel" id="dayPanel" hidden></div>
+
+  <h2>리포트 내용</h2>
+  <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap">
+    <select id="repSel"></select>
+    <span class="muted" id="repCounts"></span>
+  </div>
+  <div id="repBody"></div>
+
+  <h2>메일 발송 현황</h2>
+  <div id="mailList"></div>
+
+  <footer>
+    데이터는 저장소 상태(커밋 이력·output·insight)에서 생성됨 —
+    파이프라인이 실행될 때마다 <code>build_dashboard.py</code>가 갱신.
+    발송 여부는 인사이트 파일 커밋 기준의 추정값.
+  </footer>
+</div>
+
+<script src="data.js"></script>
+<script>
+"use strict";
+const D = window.DASH;
+const TYPE_META = {
+  daily:   { label: "증분",  color: "var(--t-daily)"  },
+  closing: { label: "마감",  color: "var(--t-closing)" },
+  check:   { label: "속보",  color: "var(--t-check)"  },
+  other:   { label: "작업",  color: "var(--t-other)"  },
+  mail:    { label: "메일",  color: "var(--t-mail)"   },
+};
+const esc = s => String(s ?? "").replace(/[&<>"']/g,
+  c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const pad = n => String(n).padStart(2, "0");
+const kstNow = () => new Date(Date.now() + (9*60 + new Date().getTimezoneOffset()) * 60000);
+const dkey = d => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+const hhmm = iso => iso ? iso.slice(11, 16) : "";
+const mdOf = iso => iso ? `${+iso.slice(5,7)}/${+iso.slice(8,10)}` : "";
+const chip = (type, extra) => {
+  const m = TYPE_META[type] || TYPE_META.other;
+  return `<span class="chip"><span class="dot" style="background:${m.color}"></span>${m.label}${extra ? " " + esc(extra) : ""}</span>`;
+};
+
+// ---- 날짜별 이벤트 맵 (커밋·메일을 KST 날짜로 묶음) ----
+const byDay = {};
+const dayOf = iso => iso ? iso.slice(0, 10) : null;
+for (const r of D.runs) {
+  const k = dayOf(r.at); if (!k) continue;
+  (byDay[k] = byDay[k] || { runs: [], mails: [] }).runs.push(r);
+}
+for (const m of D.mails) {
+  const k = dayOf(m.sent_at); if (!k) continue;
+  (byDay[k] = byDay[k] || { runs: [], mails: [] }).mails.push(m);
+}
+
+// ---- 상단 요약 타일 ----
+(function tiles() {
+  const runsSorted = [...D.runs].sort((a, b) => b.at.localeCompare(a.at));
+  const last = runsSorted[0];
+  const next = nextSlots(1)[0];
+  const w = D.window || {};
+  document.getElementById("subline").textContent =
+    `갱신 ${D.generated_at.slice(0, 16).replace("T", " ")} KST · 조사 창 ${w.start ?? "?"} ~ ${w.end ?? "?"}`;
+  const t = [];
+  t.push(["이번 주 창", `${mdOf(w.start)}~${mdOf(w.end)}`, "금~목 주간 창 (진행 중)"]);
+  t.push(["누적 keep", D.keep_now != null ? `${D.keep_now}건` : "—", "현재 keep_list 기준"]);
+  t.push(["최근 실행", last ? (TYPE_META[last.type] || TYPE_META.other).label : "—",
+          last ? `${last.at.slice(5, 16).replace("T", " ")} · ${esc(last.subject).slice(0, 40)}` : ""]);
+  t.push(["다음 예정", next ? next.sch.name.split(" + ")[0] : "—",
+          next ? `${next.when.slice(5, 16).replace("T", " ")} KST` : ""]);
+  document.getElementById("tiles").innerHTML = t.map(([k, v, d]) =>
+    `<div class="tile"><div class="k">${esc(k)}</div><div class="v">${v}</div><div class="d">${d}</div></div>`).join("");
+})();
+
+// ---- 스케줄 슬롯 계산 ----
+function occursOn(sch, d) { return sch.days.includes((d.getDay() + 6) % 7); } // JS 일=0 → 월=0
+function slotDate(sch, d) {
+  const s = new Date(d); s.setHours(sch.hour, sch.minute, 0, 0); return s;
+}
+function lastDue(sch, now) {
+  for (let i = 0; i < 14; i++) {
+    const d = new Date(now); d.setDate(d.getDate() - i);
+    if (!occursOn(sch, d)) continue;
+    const s = slotDate(sch, d);
+    if (s <= now && dkey(s) >= sch.since) return s;
+  }
+  return null;
+}
+function nextDue(sch, now) {
+  for (let i = 0; i < 14; i++) {
+    const d = new Date(now); d.setDate(d.getDate() + i);
+    if (!occursOn(sch, d)) continue;
+    const s = slotDate(sch, d);
+    if (s > now && dkey(s) >= sch.since) return s;
+  }
+  return null;
+}
+function nextSlots(n) {
+  const now = kstNow(), out = [];
+  for (const sch of D.schedule) {
+    const s = nextDue(sch, now);
+    if (s) out.push({ sch, when: toIso(s) });
+  }
+  out.sort((a, b) => a.when.localeCompare(b.when));
+  return out.slice(0, n);
+}
+function toIso(d) {
+  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+function runNear(type, slot) {
+  const lo = new Date(slot.getTime() - 30 * 60000), hi = new Date(slot.getTime() + 4 * 3600000);
+  const loS = toIso(lo), hiS = toIso(hi);
+  return D.runs.find(r => r.type === type && r.at.slice(0, 16) >= loS && r.at.slice(0, 16) <= hiS);
+}
+
+(function schedule() {
+  const now = kstNow();
+  const rows = D.schedule.map(sch => {
+    const lastR = [...D.runs].filter(r => r.type === sch.key)
+      .sort((a, b) => b.at.localeCompare(a.at))[0];
+    const due = lastDue(sch, now), nxt = nextDue(sch, now);
+    let status;
+    if (due) {
+      const hit = runNear(sch.key, due);
+      if (hit) status = `<span class="st-good">✓ 완료</span>`;
+      else if (now - due < 45 * 60000) status = `<span class="st-run">▶ 실행 중(추정)</span>`;
+      else status = `<span class="st-warn">! 누락 의심</span>`;
+    } else {
+      status = `<span class="st-wait">◷ 대기(첫 실행 전)</span>`;
+    }
+    return `<tr>
+      <td>${chip(sch.key)} ${esc(sch.name)}</td>
+      <td class="muted">${esc(sch.when)}</td>
+      <td>${lastR ? `${lastR.at.slice(5, 16).replace("T", " ")}<br><span class="muted">${esc(lastR.subject).slice(0, 46)}…</span>` : "<span class='muted'>기록 없음</span>"}</td>
+      <td>${nxt ? toIso(nxt).slice(5).replace("T", " ") : "—"}</td>
+      <td>${status}</td>
+    </tr>`;
+  });
+  document.getElementById("sched").innerHTML =
+    `<tr><th>작업</th><th>일정</th><th>최근 실행</th><th>다음 예정</th><th>직전 슬롯 상태</th></tr>` + rows.join("");
+})();
+
+// ---- 달력 ----
+let calY, calM, selKey = null;
+(function initCal() {
+  const now = kstNow(); calY = now.getFullYear(); calM = now.getMonth();
+  document.getElementById("prevM").onclick = () => { calM--; if (calM < 0) { calM = 11; calY--; } renderCal(); };
+  document.getElementById("nextM").onclick = () => { calM++; if (calM > 11) { calM = 0; calY++; } renderCal(); };
+  document.getElementById("calLegend").innerHTML =
+    Object.entries(TYPE_META).map(([k, m]) =>
+      `<span><span class="dot" style="background:${m.color}"></span>${m.label}${k === "mail" ? " 발송" : " 실행"}</span>`).join("") +
+    `<span class="muted">· 셀의 숫자 = 그날 커밋 기준 누적 keep 건수</span>`;
+  renderCal();
+})();
+
+function renderCal() {
+  const first = new Date(calY, calM, 1);
+  const start = new Date(first); start.setDate(1 - first.getDay()); // 일요일 시작
+  const todayK = dkey(kstNow());
+  document.getElementById("calTitle").textContent = `${calY}년 ${calM + 1}월`;
+  let html = ["일", "월", "화", "수", "목", "금", "토"].map(d => `<div class="dow">${d}</div>`).join("");
+  for (let i = 0; i < 42; i++) {
+    const d = new Date(start); d.setDate(start.getDate() + i);
+    const k = dkey(d), ev = byDay[k];
+    const badges = [];
+    let keep = null;
+    if (ev) {
+      const seen = new Set();
+      for (const r of ev.runs) {
+        if (!seen.has(r.type)) { seen.add(r.type); badges.push(r.type); }
+        if (r.kept_total != null) keep = r.kept_total;
+      }
+      if (ev.mails.length) badges.push("mail");
+    }
+    const cls = ["day", d.getMonth() !== calM ? "out" : "", k === todayK ? "today" : "",
+                 k === selKey ? "sel" : ""].filter(Boolean).join(" ");
+    html += `<div class="${cls}" data-k="${k}" role="button" tabindex="0">
+      <div class="dnum">${d.getDate()}</div>
+      <div class="badges">${badges.map(t => {
+        const m = TYPE_META[t];
+        return `<span class="b" title="${m.label}" style="border-color:${m.color}">
+          <span class="dot" style="background:${m.color};display:inline-block;vertical-align:middle"></span></span>`;
+      }).join("")}</div>
+      ${keep != null ? `<span class="keep">${keep}</span>` : ""}
+    </div>`;
+  }
+  const cal = document.getElementById("cal");
+  cal.innerHTML = html;
+  cal.querySelectorAll(".day").forEach(el => {
+    el.onclick = () => selectDay(el.dataset.k);
+    el.onkeydown = e => { if (e.key === "Enter") selectDay(el.dataset.k); };
+  });
+}
+
+function selectDay(k) {
+  selKey = k; renderCal();
+  const ev = byDay[k], p = document.getElementById("dayPanel");
+  p.hidden = false;
+  if (!ev) { p.innerHTML = `<h3>${k}</h3><div class="muted">기록 없음</div>`; return; }
+  const runs = [...ev.runs].sort((a, b) => a.at.localeCompare(b.at)).map(r =>
+    `<div class="evt"><span class="t">${hhmm(r.at)}</span>${chip(r.type)}
+     <span>${esc(r.subject)}</span> <code>${esc(r.sha)}</code></div>`).join("");
+  const mails = ev.mails.map(m =>
+    `<div class="evt"><span class="t">${hhmm(m.sent_at)}</span>${chip("mail")}
+     <span>${esc(m.subject)} → ${esc(m.recipients.join(", "))}</span></div>`).join("");
+  p.innerHTML = `<h3>${k}</h3>${runs}${mails}`;
+}
+
+// ---- 리포트 뷰어 ----
+(function reports() {
+  const sel = document.getElementById("repSel");
+  sel.innerHTML = D.reports.map((r, i) =>
+    `<option value="${i}">${esc(r.window)} — ${esc(r.file)}</option>`).join("");
+  sel.onchange = () => renderReport(+sel.value);
+  if (D.reports.length) renderReport(0);
+  else document.getElementById("repBody").innerHTML = `<p class="muted">리포트 없음</p>`;
+})();
+
+function renderReport(i) {
+  const r = D.reports[i];
+  document.getElementById("repCounts").textContent =
+    Object.entries(r.counts).map(([k, v]) => `${k} ${v}건`).join(" · ") +
+    ` · 합계 ${Object.values(r.counts).reduce((a, b) => a + b, 0)}건`;
+  const body = document.getElementById("repBody");
+  if (!r.sections) {
+    body.innerHTML = `<p class="muted">이 리포트는 요약(건수)만 수록 — 원본은 저장소
+      <code>output/${esc(r.file)}</code> 참고.</p>`;
+    return;
+  }
+  body.innerHTML = Object.entries(r.sections).map(([name, rows]) => `
+    <div class="sec-title">[${esc(name)}] ${rows.length}건</div>
+    <div class="tbl-wrap"><table>
+      <tr><th>Date</th><th>Brand</th><th>Category</th><th>Title</th><th>Comment</th></tr>
+      ${rows.map(x => `<tr>
+        <td class="num">${esc(x.date)}</td><td>${esc(x.brand)}</td><td>${esc(x.cat)}</td>
+        <td>${x.link ? `<a href="${esc(x.link)}" target="_blank" rel="noopener">${esc(x.title)}</a>` : esc(x.title)}</td>
+        <td class="muted">${esc(x.comment)}</td>
+      </tr>`).join("")}
+    </table></div>`).join("");
+}
+
+// ---- 메일 현황 ----
+(function mails() {
+  const el = document.getElementById("mailList");
+  el.innerHTML = D.mails.map(m => `
+    <details class="mail">
+      <summary>
+        <span class="t muted">${m.sent_at ? m.sent_at.slice(0, 16).replace("T", " ") : "?"}</span>
+        ${chip("mail", m.type === "weekly" ? "주간" : "일간")}
+        <b>${esc(m.subject)}</b>
+        <span class="muted">→ ${esc(m.recipients.join(", "))}</span>
+        <span class="st-good">✓ 발송</span>
+      </summary>
+      <pre>${esc(m.body)}</pre>
+    </details>`).join("");
+})();
+</script>
+</body>
+</html>
