@@ -202,6 +202,7 @@
     <select id="repDate" title="날짜 필터"></select>
     <span id="secChips"></span>
     <select id="repBrand" title="브랜드 필터"></select>
+    <select id="repCat" title="카테고리 필터"></select>
     <span class="fcount" id="repCount"></span>
   </div>
   <div id="repBody"></div>
@@ -472,32 +473,58 @@ function selectDay(k) {
 // ---- 리포트 필터 대시보드 (리포트·날짜·섹션·브랜드) ----
 (function reports() {
   const SECS = ["T6 Burger", "QSR", "Others"];
+  const CATS = ["Price", "Chain menu", "Promotion", "other"];  // 표시 순서 고정
   const secLabel = s => (s === "T6 Burger" ? "T6" : s);
-  const st = { i: 0, date: "all", sec: "all", brand: "all" };
+  const st = { i: 0, date: "all", sec: "all", brand: "all", cat: "all" };
   const selRep = document.getElementById("repSel");
   const selDate = document.getElementById("repDate");
   const selBrand = document.getElementById("repBrand");
+  const selCat = document.getElementById("repCat");
   const chipsEl = document.getElementById("secChips");
 
   const rowsOf = r => r.sections
     ? Object.entries(r.sections).flatMap(([sec, rows]) => rows.map(x => ({ sec, ...x })))
     : null;
 
+  // 브랜드는 섹션 소속이 있으므로: 섹션 필터 선택 시 그 섹션의 브랜드만,
+  // "전체"일 땐 T6/QSR/Others optgroup으로 구분해서 보여준다.
+  function rebuildBrandSel() {
+    const rows = rowsOf(D.reports[st.i]) || [];
+    const bySec = sec => [...new Set(rows.filter(x => x.sec === sec).map(x => x.brand))]
+      .sort((a, b) => a.localeCompare(b));
+    if (st.sec === "all") {
+      selBrand.innerHTML = `<option value="all">브랜드 전체</option>` + SECS.map(sec => {
+        const bs = bySec(sec);
+        return bs.length ? `<optgroup label="${esc(secLabel(sec))}">` +
+          bs.map(b => `<option>${esc(b)}</option>`).join("") + `</optgroup>` : "";
+      }).join("");
+    } else {
+      selBrand.innerHTML = `<option value="all">브랜드 전체 (${esc(secLabel(st.sec))})</option>` +
+        bySec(st.sec).map(b => `<option>${esc(b)}</option>`).join("");
+    }
+    if (![...selBrand.options].some(o => o.value === st.brand)) st.brand = "all";
+    selBrand.value = st.brand;
+  }
+
   function repopulate() {
     const rows = rowsOf(D.reports[st.i]) || [];
     const dates = [...new Set(rows.map(x => x.date))];
-    const brands = [...new Set(rows.map(x => x.brand))].sort((a, b) => a.localeCompare(b));
     selDate.innerHTML = `<option value="all">날짜 전체</option>` +
       dates.map(d => `<option>${esc(d)}</option>`).join("");
-    selBrand.innerHTML = `<option value="all">브랜드 전체</option>` +
-      brands.map(b => `<option>${esc(b)}</option>`).join("");
+    const present = new Set(rows.map(x => x.cat).filter(Boolean));
+    const cats = [...CATS.filter(c => present.has(c)),
+                  ...[...present].filter(c => !CATS.includes(c)).sort()];
+    selCat.innerHTML = `<option value="all">카테고리 전체</option>` +
+      cats.map(c => `<option>${esc(c)}</option>`).join("");
     chipsEl.innerHTML = [["all", "전체"], ...SECS.map(s => [s, secLabel(s)])].map(([v, l]) =>
       `<button class="fchip${st.sec === v ? " on" : ""}" data-v="${esc(v)}">${esc(l)}</button>`).join("");
     chipsEl.querySelectorAll(".fchip").forEach(b => b.onclick = () => {
       st.sec = b.dataset.v;
       chipsEl.querySelectorAll(".fchip").forEach(c => c.classList.toggle("on", c.dataset.v === st.sec));
+      rebuildBrandSel();
       render();
     });
+    rebuildBrandSel();
   }
 
   function render() {
@@ -514,7 +541,8 @@ function selectDay(k) {
     const rows = all.filter(x =>
       (st.date === "all" || x.date === st.date) &&
       (st.sec === "all" || x.sec === st.sec) &&
-      (st.brand === "all" || x.brand === st.brand));
+      (st.brand === "all" || x.brand === st.brand) &&
+      (st.cat === "all" || x.cat === st.cat));
     document.getElementById("repCount").textContent = `${rows.length}건 표시 / 전체 ${all.length}건`;
     body.innerHTML = rows.length ? `<div class="tbl-wrap"><table>
       <tr><th>Date</th><th>Section</th><th>Brand</th><th>Category</th><th>Title</th><th>Comment</th></tr>
@@ -529,9 +557,10 @@ function selectDay(k) {
 
   selRep.innerHTML = D.reports.map((r, i) =>
     `<option value="${i}">${esc(r.window)} — ${esc(r.file)}</option>`).join("");
-  selRep.onchange = () => { st.i = +selRep.value; st.date = st.sec = st.brand = "all"; repopulate(); render(); };
+  selRep.onchange = () => { st.i = +selRep.value; st.date = st.sec = st.brand = st.cat = "all"; repopulate(); render(); };
   selDate.onchange = () => { st.date = selDate.value; render(); };
   selBrand.onchange = () => { st.brand = selBrand.value; render(); };
+  selCat.onchange = () => { st.cat = selCat.value; render(); };
 
   if (D.reports.length) { repopulate(); render(); }
   else document.getElementById("repBody").innerHTML = `<p class="muted">리포트 없음</p>`;
