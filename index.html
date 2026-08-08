@@ -109,21 +109,34 @@
   .muted { color: var(--ink-2); }
   footer { margin-top: 48px; font-size: 12px; color: var(--ink-3); }
 
+  .ins-card { border-left: 4px solid var(--accent); padding: 16px 20px; }
+  .ins-meta { display: flex; flex-wrap: wrap; gap: 8px 10px; align-items: center;
+              padding-bottom: 10px; margin-bottom: 4px; border-bottom: 1px solid var(--border); }
+  .ins-meta b { font-size: 14px; }
+  .ins-meta .when { color: var(--ink-3); font-size: 12px; }
   .ins-body { line-height: 1.75; }
-  .ins-body p { margin: 8px 0; }
-  .ins-body ul { margin: 6px 0 12px; padding-left: 20px; }
-  .ins-body li { margin: 4px 0; }
-  .ins-h { font-weight: 700; font-size: 15px; margin: 14px 0 6px; padding-bottom: 4px;
-           border-bottom: 2px solid var(--border); }
-  .ins-h:first-child { margin-top: 2px; }
-  .ins-foot { font-size: 12px; color: var(--ink-3); margin-top: 10px; }
+  .ins-body p { margin: 9px 0; }
+  .ins-h { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 15px;
+           margin: 18px 0 8px; }
+  .ins-h::before { content: ""; width: 5px; height: 16px; border-radius: 3px;
+                   background: var(--accent); flex: none; }
+  .ins-ul { list-style: none; margin: 8px 0 12px; padding: 0;
+            display: flex; flex-direction: column; gap: 6px; }
+  .ins-li { background: var(--bg); border: 1px solid var(--border); border-radius: 8px;
+            padding: 7px 12px; display: flex; gap: 9px; align-items: baseline; }
+  .ins-li .dot { background: var(--accent); align-self: center; }
+  .ins-foot { font-size: 12px; color: var(--ink-3); margin-top: 12px; }
 
-  details.repsec { margin-top: 10px; border: 1px solid var(--border); border-radius: 10px;
-                   background: var(--surface); }
-  details.repsec > summary { cursor: pointer; padding: 9px 14px; font-weight: 700;
-                             font-size: 13px; }
-  details.repsec .tbl-wrap { border: 0; border-top: 1px solid var(--border);
-                             border-radius: 0 0 10px 10px; }
+  details.sect { margin-top: 34px; }
+  details.sect > summary { cursor: pointer; font-size: 16px; font-weight: 700; padding: 2px 0; }
+  details.sect > summary:hover { color: var(--accent); }
+  .sect-body { margin-top: 12px; }
+
+  .fbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 10px; }
+  .fchip { border: 1px solid var(--border); background: var(--surface); color: var(--ink);
+           border-radius: 999px; padding: 4px 13px; font-size: 13px; cursor: pointer; }
+  .fchip.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .fcount { font-size: 12px; color: var(--ink-2); margin-left: auto; }
 
   /* ---- 모바일 ---- */
   @media (max-width: 640px) {
@@ -162,30 +175,41 @@
   <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap">
     <select id="insSel"></select>
   </div>
-  <div class="panel ins-body" id="insBody" style="margin-top:10px"></div>
+  <div class="panel ins-card ins-body" id="insBody" style="margin-top:10px"></div>
 
-  <h2>작업 스케줄</h2>
-  <div class="tbl-wrap"><table id="sched"></table></div>
+  <details class="sect">
+    <summary>작업 스케줄</summary>
+    <div class="sect-body tbl-wrap"><table id="sched"></table></div>
+  </details>
 
-  <h2>수집 달력</h2>
-  <div class="cal-head">
-    <button id="prevM" aria-label="이전 달">◀</button>
-    <b id="calTitle"></b>
-    <button id="nextM" aria-label="다음 달">▶</button>
-  </div>
-  <div class="cal" id="cal"></div>
-  <div class="legend" id="calLegend"></div>
-  <div class="panel" id="dayPanel" hidden></div>
+  <details class="sect">
+    <summary>수집 달력</summary>
+    <div class="sect-body">
+      <div class="cal-head">
+        <button id="prevM" aria-label="이전 달">◀</button>
+        <b id="calTitle"></b>
+        <button id="nextM" aria-label="다음 달">▶</button>
+      </div>
+      <div class="cal" id="cal"></div>
+      <div class="legend" id="calLegend"></div>
+      <div class="panel" id="dayPanel" hidden></div>
+    </div>
+  </details>
 
   <h2>리포트 내용</h2>
-  <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap">
-    <select id="repSel"></select>
-    <span class="muted" id="repCounts"></span>
+  <div class="fbar">
+    <select id="repSel" title="수집 리포트 선택"></select>
+    <select id="repDate" title="날짜 필터"></select>
+    <span id="secChips"></span>
+    <select id="repBrand" title="브랜드 필터"></select>
+    <span class="fcount" id="repCount"></span>
   </div>
   <div id="repBody"></div>
 
-  <h2>메일 발송 현황</h2>
-  <div id="mailList"></div>
+  <details class="sect">
+    <summary>메일 발송 현황</summary>
+    <div class="sect-body" id="mailList"></div>
+  </details>
 
   <footer>
     데이터는 저장소 상태(커밋 이력·output·insight)에서 생성됨 —
@@ -270,7 +294,11 @@ function insightHtml(body) {
   const out = []; let bullets = [];
   const inline = s => esc(s).replace(/\*\*(.+?)\*\*/g, "<b>$1</b>");
   const flush = () => {
-    if (bullets.length) { out.push(`<ul>${bullets.map(b => `<li>${b}</li>`).join("")}</ul>`); bullets = []; }
+    if (bullets.length) {
+      out.push(`<ul class="ins-ul">${bullets.map(b =>
+        `<li class="ins-li"><span class="dot"></span><span>${b}</span></li>`).join("")}</ul>`);
+      bullets = [];
+    }
   };
   for (let line of String(body || "").split(/\r?\n/)) {
     line = line.trimEnd();
@@ -294,7 +322,14 @@ function insightHtml(body) {
   const sel = document.getElementById("insSel");
   sel.innerHTML = sorted.map((m, i) =>
     `<option value="${i}">${esc(m.subject)}${m.type === "weekly" ? " (주간)" : ""}</option>`).join("");
-  const render = i => { document.getElementById("insBody").innerHTML = insightHtml(sorted[i].body); };
+  const render = i => {
+    const m = sorted[i];
+    const meta = `<div class="ins-meta">${chip("mail", m.type === "weekly" ? "주간" : "일간")}` +
+      `<b>${esc(m.subject)}</b>` +
+      (m.sent_at ? `<span class="when">${m.sent_at.slice(0, 16).replace("T", " ")} 발송</span>` : "") +
+      `</div>`;
+    document.getElementById("insBody").innerHTML = meta + insightHtml(m.body);
+  };
   sel.onchange = () => render(+sel.value);
   if (sorted.length) render(0);
   else document.getElementById("insBody").innerHTML = `<p class="muted">인사이트 없음</p>`;
@@ -434,40 +469,73 @@ function selectDay(k) {
   p.innerHTML = `<h3>${k}</h3>${runs}${mails}`;
 }
 
-// ---- 리포트 뷰어 ----
+// ---- 리포트 필터 대시보드 (리포트·날짜·섹션·브랜드) ----
 (function reports() {
-  const sel = document.getElementById("repSel");
-  sel.innerHTML = D.reports.map((r, i) =>
+  const SECS = ["T6 Burger", "QSR", "Others"];
+  const secLabel = s => (s === "T6 Burger" ? "T6" : s);
+  const st = { i: 0, date: "all", sec: "all", brand: "all" };
+  const selRep = document.getElementById("repSel");
+  const selDate = document.getElementById("repDate");
+  const selBrand = document.getElementById("repBrand");
+  const chipsEl = document.getElementById("secChips");
+
+  const rowsOf = r => r.sections
+    ? Object.entries(r.sections).flatMap(([sec, rows]) => rows.map(x => ({ sec, ...x })))
+    : null;
+
+  function repopulate() {
+    const rows = rowsOf(D.reports[st.i]) || [];
+    const dates = [...new Set(rows.map(x => x.date))];
+    const brands = [...new Set(rows.map(x => x.brand))].sort((a, b) => a.localeCompare(b));
+    selDate.innerHTML = `<option value="all">날짜 전체</option>` +
+      dates.map(d => `<option>${esc(d)}</option>`).join("");
+    selBrand.innerHTML = `<option value="all">브랜드 전체</option>` +
+      brands.map(b => `<option>${esc(b)}</option>`).join("");
+    chipsEl.innerHTML = [["all", "전체"], ...SECS.map(s => [s, secLabel(s)])].map(([v, l]) =>
+      `<button class="fchip${st.sec === v ? " on" : ""}" data-v="${esc(v)}">${esc(l)}</button>`).join("");
+    chipsEl.querySelectorAll(".fchip").forEach(b => b.onclick = () => {
+      st.sec = b.dataset.v;
+      chipsEl.querySelectorAll(".fchip").forEach(c => c.classList.toggle("on", c.dataset.v === st.sec));
+      render();
+    });
+  }
+
+  function render() {
+    const r = D.reports[st.i];
+    const body = document.getElementById("repBody");
+    const all = rowsOf(r);
+    if (!all) {
+      document.getElementById("repCount").textContent =
+        Object.entries(r.counts).map(([k, v]) => `${secLabel(k)} ${v}건`).join(" · ");
+      body.innerHTML = `<p class="muted">이 리포트는 요약(건수)만 수록 — 원본은 저장소
+        <code>output/${esc(r.file)}</code> 참고.</p>`;
+      return;
+    }
+    const rows = all.filter(x =>
+      (st.date === "all" || x.date === st.date) &&
+      (st.sec === "all" || x.sec === st.sec) &&
+      (st.brand === "all" || x.brand === st.brand));
+    document.getElementById("repCount").textContent = `${rows.length}건 표시 / 전체 ${all.length}건`;
+    body.innerHTML = rows.length ? `<div class="tbl-wrap"><table>
+      <tr><th>Date</th><th>Section</th><th>Brand</th><th>Category</th><th>Title</th><th>Comment</th></tr>
+      ${rows.map(x => `<tr>
+        <td class="num">${esc(x.date)}</td><td>${esc(secLabel(x.sec))}</td><td>${esc(x.brand)}</td>
+        <td>${esc(x.cat)}</td>
+        <td>${x.link ? `<a href="${esc(x.link)}" target="_blank" rel="noopener">${esc(x.title)}</a>` : esc(x.title)}</td>
+        <td class="muted">${esc(x.comment)}</td>
+      </tr>`).join("")}
+    </table></div>` : `<p class="muted">필터 조건에 맞는 기사가 없습니다.</p>`;
+  }
+
+  selRep.innerHTML = D.reports.map((r, i) =>
     `<option value="${i}">${esc(r.window)} — ${esc(r.file)}</option>`).join("");
-  sel.onchange = () => renderReport(+sel.value);
-  if (D.reports.length) renderReport(0);
+  selRep.onchange = () => { st.i = +selRep.value; st.date = st.sec = st.brand = "all"; repopulate(); render(); };
+  selDate.onchange = () => { st.date = selDate.value; render(); };
+  selBrand.onchange = () => { st.brand = selBrand.value; render(); };
+
+  if (D.reports.length) { repopulate(); render(); }
   else document.getElementById("repBody").innerHTML = `<p class="muted">리포트 없음</p>`;
 })();
-
-function renderReport(i) {
-  const r = D.reports[i];
-  document.getElementById("repCounts").textContent =
-    Object.entries(r.counts).map(([k, v]) => `${k} ${v}건`).join(" · ") +
-    ` · 합계 ${Object.values(r.counts).reduce((a, b) => a + b, 0)}건`;
-  const body = document.getElementById("repBody");
-  if (!r.sections) {
-    body.innerHTML = `<p class="muted">이 리포트는 요약(건수)만 수록 — 원본은 저장소
-      <code>output/${esc(r.file)}</code> 참고.</p>`;
-    return;
-  }
-  body.innerHTML = Object.entries(r.sections).map(([name, rows]) => `
-    <details class="repsec">
-      <summary>[${esc(name)}] ${rows.length}건 — 펼쳐보기</summary>
-      <div class="tbl-wrap"><table>
-        <tr><th>Date</th><th>Brand</th><th>Category</th><th>Title</th><th>Comment</th></tr>
-        ${rows.map(x => `<tr>
-          <td class="num">${esc(x.date)}</td><td>${esc(x.brand)}</td><td>${esc(x.cat)}</td>
-          <td>${x.link ? `<a href="${esc(x.link)}" target="_blank" rel="noopener">${esc(x.title)}</a>` : esc(x.title)}</td>
-          <td class="muted">${esc(x.comment)}</td>
-        </tr>`).join("")}
-      </table></div>
-    </details>`).join("");
-}
 
 // ---- 메일 현황 ----
 (function mails() {
