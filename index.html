@@ -127,6 +127,14 @@
   .ins-li .dot { background: var(--accent); align-self: center; }
   .ins-foot { font-size: 12px; color: var(--ink-3); margin-top: 12px; }
 
+  /* Long 버전 — 브랜드별 토글 */
+  .btog { background: var(--bg); border: 1px solid var(--border); border-radius: 10px; margin: 8px 0; }
+  .btog > summary { cursor: pointer; font-weight: 700; font-size: 14px; padding: 9px 14px;
+                    list-style-position: inside; }
+  .btog > summary:hover { color: var(--accent); }
+  .btog[open] > summary { border-bottom: 1px solid var(--border); }
+  .btog-body { padding: 2px 16px 10px; }
+
   details.sect { margin-top: 34px; }
   details.sect > summary { cursor: pointer; font-size: 16px; font-weight: 700; padding: 2px 0; }
   details.sect > summary:hover { color: var(--accent); }
@@ -171,9 +179,10 @@
 
   <div class="tiles" id="tiles"></div>
 
-  <h2>인사이트 (메일 요약)</h2>
+  <h2>인사이트</h2>
   <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap">
     <select id="insSel"></select>
+    <span id="insVer" style="display:inline-flex; gap:6px"></span>
   </div>
   <div class="panel ins-card ins-body" id="insBody" style="margin-top:10px"></div>
 
@@ -321,19 +330,45 @@ function insightHtml(body) {
 (function insights() {
   const sorted = [...D.mails].sort((a, b) => (b.sent_at || "").localeCompare(a.sent_at || ""));
   const sel = document.getElementById("insSel");
+  const verEl = document.getElementById("insVer");
+  let idx = 0, ver = "short";
   sel.innerHTML = sorted.map((m, i) =>
     `<option value="${i}">${esc(m.subject)}${m.type === "weekly" ? " (주간)" : ""}</option>`).join("");
-  const render = i => {
-    const m = sorted[i];
+  // Long 본문: 첫 "## " 전 = 인트로, 이후 "## 브랜드" 단위로 접이식 토글
+  const longHtml = md => {
+    const parts = String(md).split(/\r?\n## +/);
+    const intro = parts.shift();
+    return insightHtml(intro) + parts.map(sec => {
+      const nl = sec.search(/\r?\n/);
+      const name = (nl < 0 ? sec : sec.slice(0, nl)).trim();
+      const body = nl < 0 ? "" : sec.slice(nl);
+      return `<details class="btog"><summary>${esc(name)}</summary>` +
+             `<div class="btog-body">${insightHtml(body)}</div></details>`;
+    }).join("");
+  };
+  const render = () => {
+    const m = sorted[idx];
+    if (!m) {
+      document.getElementById("insBody").innerHTML = `<p class="muted">인사이트 없음</p>`;
+      verEl.innerHTML = "";
+      return;
+    }
+    if (!m.long) ver = "short";
+    verEl.innerHTML = [["short", "Short"], ["long", "Long"]].map(([v, l]) =>
+      v === "long" && !m.long
+        ? `<button class="fchip" disabled title="이 실행엔 Long 버전이 없습니다" style="opacity:.45; cursor:default">${l}</button>`
+        : `<button class="fchip${ver === v ? " on" : ""}" data-v="${v}">${l}</button>`).join("");
+    verEl.querySelectorAll(".fchip[data-v]").forEach(b => b.onclick = () => { ver = b.dataset.v; render(); });
     const meta = `<div class="ins-meta">${chip("mail", m.type === "weekly" ? "주간" : "일간")}` +
       `<b>${esc(m.subject)}</b>` +
+      (ver === "long" ? `<span class="when">Long · T6/QSR 브랜드별 상세 (대시보드 전용)</span>` : "") +
       (m.sent_at ? `<span class="when">${m.sent_at.slice(0, 16).replace("T", " ")} 발송</span>` : "") +
       `</div>`;
-    document.getElementById("insBody").innerHTML = meta + insightHtml(m.body);
+    document.getElementById("insBody").innerHTML =
+      meta + (ver === "long" ? longHtml(m.long) : insightHtml(m.body));
   };
-  sel.onchange = () => render(+sel.value);
-  if (sorted.length) render(0);
-  else document.getElementById("insBody").innerHTML = `<p class="muted">인사이트 없음</p>`;
+  sel.onchange = () => { idx = +sel.value; render(); };
+  render();
 })();
 
 // ---- 스케줄 슬롯 계산 ----
