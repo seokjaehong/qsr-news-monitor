@@ -423,6 +423,7 @@ function runNear(type, slot) {
       const hit = runNear(sch.key, due);
       if (hit) status = `<span class="st-good">✓ 완료</span>`;
       else if (now - due < 45 * 60000) status = `<span class="st-run">▶ 실행 중(추정)</span>`;
+      else if (sch.noop_ok) status = `<span class="st-wait">◇ 커밋 없음 (무사건 no-op면 정상)</span>`;
       else status = `<span class="st-warn">! 누락 의심</span>`;
     } else {
       status = `<span class="st-wait">◷ 대기(첫 실행 전)</span>`;
