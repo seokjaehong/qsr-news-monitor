@@ -84,6 +84,7 @@
   .cal .day.sel { outline: 2px solid var(--accent); }
   .cal .dnum { font-size: 12px; color: var(--ink-2); }
   .cal .badges { display: flex; flex-wrap: wrap; gap: 3px; margin-top: 4px; }
+  .cal .b.bf { border-style: dashed; }
   .cal .b { font-size: 11px; line-height: 1; padding: 3px 5px; border-radius: 5px;
             background: var(--bg); border: 1px solid var(--border); }
   .cal .keep { position: absolute; right: 7px; bottom: 5px; font-size: 11px; color: var(--ink-3); }
@@ -274,6 +275,9 @@ const dayOf = iso => iso ? iso.slice(0, 10) : null;
 for (const r of D.runs) {
   const k = dayOf(r.at); if (!k) continue;
   (byDay[k] = byDay[k] || { runs: [], mails: [] }).runs.push(r);
+  // 소급 실행은 원래 놓친 슬롯 날짜에도 표시 (실제 커밋일과 별개로 그날의 결손이 메워졌음을 보이기 위해)
+  if (r.backfill_for && r.backfill_for !== k)
+    (byDay[r.backfill_for] = byDay[r.backfill_for] || { runs: [], mails: [] }).runs.push({ ...r, backfill: true });
 }
 for (const m of D.mails) {
   const k = dayOf(m.sent_at); if (!k) continue;
@@ -409,7 +413,8 @@ function toIso(d) {
 function runNear(type, slot) {
   const lo = new Date(slot.getTime() - 30 * 60000), hi = new Date(slot.getTime() + 4 * 3600000);
   const loS = toIso(lo), hiS = toIso(hi);
-  return D.runs.find(r => r.type === type && r.at.slice(0, 16) >= loS && r.at.slice(0, 16) <= hiS);
+  return D.runs.find(r => r.type === type && r.at.slice(0, 16) >= loS && r.at.slice(0, 16) <= hiS)
+      || D.runs.find(r => r.type === type && r.backfill_for === dkey(slot));
 }
 
 (function schedule() {
@@ -421,7 +426,9 @@ function runNear(type, slot) {
     let status;
     if (due) {
       const hit = runNear(sch.key, due);
-      if (hit) status = `<span class="st-good">✓ 완료</span>`;
+      if (hit && hit.backfill_for === dkey(due) && dayOf(hit.at) !== dkey(due))
+        status = `<span class="st-good">✓ 소급 완료 (${hit.at.slice(5, 16).replace("T", " ")})</span>`;
+      else if (hit) status = `<span class="st-good">✓ 완료</span>`;
       else if (now - due < 45 * 60000) status = `<span class="st-run">▶ 실행 중(추정)</span>`;
       else if (sch.noop_ok) status = `<span class="st-wait">◇ 커밋 없음 (무사건 no-op면 정상)</span>`;
       else status = `<span class="st-warn">! 누락 의심</span>`;
@@ -449,7 +456,7 @@ let calY, calM, selKey = null;
   document.getElementById("calLegend").innerHTML =
     Object.entries(TYPE_META).map(([k, m]) =>
       `<span><span class="dot" style="background:${m.color}"></span>${m.label}${k === "mail" ? " 발송" : " 실행"}</span>`).join("") +
-    `<span class="muted">· 셀의 숫자 = 그날 커밋 기준 누적 keep 건수</span>`;
+    `<span class="muted">· 셀의 숫자 = 그날 커밋 기준 누적 keep 건수 · 점선 = 나중에 소급 실행으로 메운 날</span>`;
   renderCal();
 })();
 
@@ -467,18 +474,19 @@ function renderCal() {
     if (ev) {
       const seen = new Set();
       for (const r of ev.runs) {
-        if (!seen.has(r.type)) { seen.add(r.type); badges.push(r.type); }
+        const key = r.type + (r.backfill ? "*" : "");
+        if (!seen.has(key)) { seen.add(key); badges.push({ t: r.type, bf: !!r.backfill }); }
         if (r.kept_total != null) keep = r.kept_total;
       }
-      if (ev.mails.length) badges.push("mail");
+      if (ev.mails.length) badges.push({ t: "mail", bf: false });
     }
     const cls = ["day", d.getMonth() !== calM ? "out" : "", k === todayK ? "today" : "",
                  k === selKey ? "sel" : ""].filter(Boolean).join(" ");
     html += `<div class="${cls}" data-k="${k}" role="button" tabindex="0">
       <div class="dnum">${d.getDate()}</div>
-      <div class="badges">${badges.map(t => {
+      <div class="badges">${badges.map(({ t, bf }) => {
         const m = TYPE_META[t];
-        return `<span class="b" title="${m.label}" style="border-color:${m.color}">
+        return `<span class="b${bf ? " bf" : ""}" title="${m.label}${bf ? " (소급 실행)" : ""}" style="border-color:${m.color}">
           <span class="dot" style="background:${m.color};display:inline-block;vertical-align:middle"></span></span>`;
       }).join("")}</div>
       ${keep != null ? `<span class="keep">${keep}</span>` : ""}
@@ -498,7 +506,7 @@ function selectDay(k) {
   p.hidden = false;
   if (!ev) { p.innerHTML = `<h3>${k}</h3><div class="muted">기록 없음</div>`; return; }
   const runs = [...ev.runs].sort((a, b) => a.at.localeCompare(b.at)).map(r =>
-    `<div class="evt"><span class="t">${hhmm(r.at)}</span>${chip(r.type)}
+    `<div class="evt"><span class="t">${r.backfill ? mdOf(r.at) + " " : ""}${hhmm(r.at)}</span>${chip(r.type, r.backfill ? "소급" : "")}
      <span>${esc(r.subject)}</span> <code>${esc(r.sha)}</code></div>`).join("");
   const mails = ev.mails.map(m =>
     `<div class="evt"><span class="t">${hhmm(m.sent_at)}</span>${chip("mail")}
