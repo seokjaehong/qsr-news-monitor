@@ -160,10 +160,22 @@
             background: var(--border); }
   .tl-bar span { display: block; height: 100%; }
   .tl-lg { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; }
+  .tl-range { display: inline-flex; align-items: center; gap: 6px; }
+  input[type="date"] { background: var(--surface); color: var(--ink); border: 1px solid var(--border);
+                       border-radius: 6px; padding: 4px 8px; font-size: 13px; font-family: inherit; }
+  .fchip .dot { display: inline-block; vertical-align: middle; margin: -2px 5px 0 0; }
   .tl-week { display: grid; grid-template-columns: 108px 1fr; gap: 0 14px; }
-  .tl-rail { position: sticky; top: 8px; align-self: start; padding: 8px 0 12px; }
+  /* 주 라벨(레일)은 그 주를 접고 펴는 버튼 — 펼친 상태에선 목록 옆에 고정 */
+  .tl-rail { position: sticky; top: 8px; align-self: start; padding: 8px 0 12px; display: block; width: 100%;
+             background: none; border: 0; text-align: left; cursor: pointer; color: inherit; font: inherit; }
+  .tl-rail:hover .tl-wk { color: var(--accent); }
   .tl-wk { font-weight: 700; font-size: 13px; font-variant-numeric: tabular-nums; }
   .tl-wn { font-size: 12px; color: var(--ink-3); }
+  .tl-tg { display: inline-block; transition: transform .15s; }
+  .tl-week.folded .tl-tg { transform: rotate(-90deg); }
+  .tl-week.folded .tl-list { display: none; }
+  .tl-week.folded .tl-rail { position: static; padding-bottom: 4px; }
+  @media (prefers-reduced-motion: reduce) { .tl-tg { transition: none; } }
   .tl-list { list-style: none; margin: 0; padding: 6px 0 14px 22px; border-left: 2px solid var(--border); }
   .tl-item { position: relative; padding: 5px 0 9px; }
   .tl-dot { position: absolute; left: -29px; top: 11px; width: 12px; height: 12px; border-radius: 50%;
@@ -271,6 +283,14 @@
         <span id="tlSecChips"></span>
         <select id="tlBrand" title="브랜드 선택"></select>
         <span id="tlOrder" style="display:inline-flex; gap:6px"></span>
+      </div>
+      <div class="fbar">
+        <span id="tlCatChips"></span>
+        <span class="tl-range"><span class="muted">기간</span>
+          <input type="date" id="tlFrom" title="시작일"><span class="muted">~</span><input type="date" id="tlTo" title="종료일">
+        </span>
+        <button class="fchip" id="tlRangeReset" type="button">전체 기간</button>
+        <button class="fchip" id="tlFold" type="button" style="margin-left:auto">주 모두 접기</button>
       </div>
       <div class="tl-sum" id="tlSum"></div>
       <div id="tlBody"></div>
@@ -684,10 +704,12 @@ function selectDay(k) {
   const CATS = ["Price", "Chain menu", "Promotion", "other"];
   const CAT_VAR = { "Price": "--c-price", "Chain menu": "--c-menu", "Promotion": "--c-promo", "other": "--c-other" };
   const secLabel = s => (s === "T6 Burger" ? "T6" : s);
-  const chipsEl = document.getElementById("tlSecChips"), selBrand = document.getElementById("tlBrand"),
-        orderEl = document.getElementById("tlOrder"), sumEl = document.getElementById("tlSum"),
-        body = document.getElementById("tlBody");
-  const st = { sec: "all", brand: null, desc: true };
+  const $ = id => document.getElementById(id);
+  const chipsEl = $("tlSecChips"), catEl = $("tlCatChips"), selBrand = $("tlBrand"), orderEl = $("tlOrder"),
+        sumEl = $("tlSum"), body = $("tlBody"), fromEl = $("tlFrom"), toEl = $("tlTo"),
+        resetEl = $("tlRangeReset"), foldEl = $("tlFold");
+  const st = { sec: "all", brand: null, desc: true, cat: "all", from: "", to: "", folded: new Set() };
+  const colorOf = c => `var(${CAT_VAR[c] || "--c-other"})`;
 
   // 주간 창 = 금~목: 날짜가 속한 주의 금요일을 키로 쓴다
   const weekOf = d => {
@@ -735,20 +757,49 @@ function selectDay(k) {
         : `<p class="muted">이 브랜드를 다룬 Long 인사이트가 아직 없습니다.</p>`}</div></details>`;
   }
 
+  // 카테고리 칩: 선택한 브랜드의 전체 분포(기간 필터 전)를 건수와 함께 보여준다
+  function catChips(brandRows) {
+    const n = {};
+    for (const x of brandRows) n[x.c] = (n[x.c] || 0) + 1;
+    const cats = [...CATS.filter(c => n[c]), ...Object.keys(n).filter(c => !CATS.includes(c))];
+    catEl.innerHTML = [`<button class="fchip${st.cat === "all" ? " on" : ""}" data-v="all">카테고리 전체 ${brandRows.length}</button>`,
+      ...cats.map(c => `<button class="fchip${st.cat === c ? " on" : ""}" data-v="${esc(c)}"><span class="dot" style="background:${colorOf(c)}"></span>${esc(c)} ${n[c]}</button>`)].join("");
+    catEl.querySelectorAll(".fchip").forEach(b => b.onclick = () => { st.cat = b.dataset.v; render(); });
+  }
+
+  const allFolded = () => {
+    const weeks = [...body.querySelectorAll(".tl-week")];
+    return weeks.length > 0 && weeks.every(w => w.classList.contains("folded"));
+  };
+  const setFold = (sec, fold) => {
+    sec.classList.toggle("folded", fold);
+    sec.querySelector(".tl-rail").setAttribute("aria-expanded", String(!fold));
+    fold ? st.folded.add(sec.dataset.w) : st.folded.delete(sec.dataset.w);
+  };
+  const foldLabel = () => { foldEl.textContent = allFolded() ? "주 모두 펼치기" : "주 모두 접기"; };
+
   function render() {
-    const rows = T.filter(x => x.b === st.brand && (st.sec === "all" || x.s === st.sec))
+    const brandRows = T.filter(x => x.b === st.brand && (st.sec === "all" || x.s === st.sec));
+    catChips(brandRows);
+    resetEl.classList.toggle("on", !st.from && !st.to);
+    const rows = brandRows.filter(x => (st.cat === "all" || x.c === st.cat) &&
+                                       (!st.from || x.d >= st.from) && (!st.to || x.d <= st.to))
       .sort((a, b) => st.desc ? b.d.localeCompare(a.d) : a.d.localeCompare(b.d));
     if (!rows.length) {
-      sumEl.innerHTML = "";
-      body.innerHTML = `<p class="muted">이 브랜드로 수록된 기사가 없습니다.</p>`;
+      sumEl.innerHTML = brandRows.length ? `<b>${esc(st.brand)}</b><span>0건 / 전체 ${brandRows.length}건</span>` : "";
+      body.innerHTML = `<p class="muted">${brandRows.length
+        ? "조건에 맞는 기사가 없습니다 — 기간이나 카테고리를 넓혀 보세요."
+        : "이 브랜드로 수록된 기사가 없습니다."}</p>`;
+      foldLabel();
       return;
     }
     const catN = {};
     for (const x of rows) catN[x.c] = (catN[x.c] || 0) + 1;
     const cats = [...CATS.filter(c => catN[c]), ...Object.keys(catN).filter(c => !CATS.includes(c))];
     const lo = st.desc ? rows[rows.length - 1].d : rows[0].d, hi = st.desc ? rows[0].d : rows[rows.length - 1].d;
-    const colorOf = c => `var(${CAT_VAR[c] || "--c-other"})`;
-    sumEl.innerHTML = `<b>${esc(st.brand)}</b><span>${rows.length}건</span><span>${mdOf(lo)}~${mdOf(hi)}</span>` +
+    sumEl.innerHTML = `<b>${esc(st.brand)}</b>` +
+      `<span>${rows.length}건${rows.length !== brandRows.length ? ` / 전체 ${brandRows.length}건` : ""}</span>` +
+      `<span>${mdOf(lo)}~${mdOf(hi)}</span>` +
       `<span class="tl-bar">${cats.map(c => `<span style="width:${100 * catN[c] / rows.length}%; background:${colorOf(c)}"></span>`).join("")}</span>` +
       cats.map(c => `<span class="tl-lg"><span class="dot" style="background:${colorOf(c)}"></span>${esc(c)} ${catN[c]}</span>`).join("");
     const groups = [];
@@ -756,13 +807,21 @@ function selectDay(k) {
       const w = weekOf(x.d), g = groups[groups.length - 1];
       if (g && g.key === w.key) g.items.push(x); else groups.push({ ...w, items: [x] });
     }
-    body.innerHTML = groups.map(g => `<section class="tl-week">
-      <div class="tl-rail"><div class="tl-wk">${esc(g.label)}</div><div class="tl-wn">${g.items.length}건</div></div>
+    body.innerHTML = groups.map(g => `<section class="tl-week${st.folded.has(g.key) ? " folded" : ""}" data-w="${g.key}">
+      <button class="tl-rail" type="button" aria-expanded="${!st.folded.has(g.key)}" title="이 주 접기/펼치기">
+        <span class="tl-wk">${esc(g.label)}</span><br><span class="tl-wn">${g.items.length}건 <span class="tl-tg">▾</span></span>
+      </button>
       <ol class="tl-list">${g.items.map(x => `<li class="tl-item" data-cat="${esc(x.c)}"><span class="tl-dot"></span>
         <div class="tl-head"><span>${esc(mdOf(x.d))}</span><span class="tl-cat">${esc(x.c)}</span>${st.sec === "all" ? `<span>${esc(secLabel(x.s))}</span>` : ""}</div>
         ${x.l ? `<a class="tl-title" href="${esc(x.l)}" target="_blank" rel="noopener">${esc(x.t)}</a>` : `<div class="tl-title">${esc(x.t)}</div>`}
         ${x.m ? `<div class="tl-cmt">${esc(x.m)}</div>` : ""}</li>`).join("")}</ol>
     </section>`).join("") + archiveHtml();
+    body.querySelectorAll(".tl-rail").forEach(b => b.onclick = () => {
+      const sec = b.closest(".tl-week");
+      setFold(sec, !sec.classList.contains("folded"));
+      foldLabel();
+    });
+    foldLabel();
   }
 
   function controls() {
@@ -778,6 +837,15 @@ function selectDay(k) {
     });
   }
   selBrand.onchange = () => { st.brand = selBrand.value; render(); };
+  fromEl.onchange = () => { st.from = fromEl.value; render(); };
+  toEl.onchange = () => { st.to = toEl.value; render(); };
+  resetEl.onclick = () => { st.from = st.to = ""; fromEl.value = toEl.value = ""; render(); };
+  foldEl.onclick = () => {
+    const open = allFolded();
+    body.querySelectorAll(".tl-week").forEach(sec => setFold(sec, !open));
+    foldLabel();
+  };
+  if (T.length) { fromEl.min = toEl.min = T[0].d; fromEl.max = toEl.max = T[T.length - 1].d; }
 
   if (T.length) { controls(); rebuildBrandSel(); render(); }
   else body.innerHTML = `<p class="muted">타임라인 데이터가 아직 없습니다 — 다음 실행의 대시보드 갱신 후 표시됩니다.</p>`;
