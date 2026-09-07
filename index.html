@@ -12,6 +12,8 @@
     --t-daily: #0969da; --t-closing: #8250df; --t-check: #bc4c00;
     --t-mail: #1a7f37; --t-other: #6e7781;
     --link: #0969da; --today: #fff8c5;
+    /* 기사 카테고리 (브랜드 타임라인 마커) */
+    --c-price: #cf222e; --c-menu: #0969da; --c-promo: #9a6700; --c-other: #6e7781;
   }
   /* 수동 토글(data-theme)이 시스템 설정보다 우선 — 다크 변수 블록은 두 곳에 중복 선언 */
   :root[data-theme="dark"] {
@@ -21,6 +23,7 @@
     --t-daily: #58a6ff; --t-closing: #a371f7; --t-check: #f0883e;
     --t-mail: #3fb950; --t-other: #8b949e;
     --link: #58a6ff; --today: #3a3520;
+    --c-price: #ff7b72; --c-menu: #58a6ff; --c-promo: #d29922; --c-other: #8b949e;
   }
   @media (prefers-color-scheme: dark) {
     :root:not([data-theme="light"]) {
@@ -30,6 +33,7 @@
       --t-daily: #58a6ff; --t-closing: #a371f7; --t-check: #f0883e;
       --t-mail: #3fb950; --t-other: #8b949e;
       --link: #58a6ff; --today: #3a3520;
+      --c-price: #ff7b72; --c-menu: #58a6ff; --c-promo: #d29922; --c-other: #8b949e;
     }
   }
   * { box-sizing: border-box; }
@@ -147,6 +151,41 @@
   .fchip.on { background: var(--accent); border-color: var(--accent); color: #fff; }
   .fcount { font-size: 12px; color: var(--ink-2); margin-left: auto; }
 
+  /* ---- 브랜드 타임라인: 왼쪽 레일에 주(週) 라벨을 고정하고 오른쪽에 사건을 시간순으로 쌓는다 ---- */
+  .tl-note { margin: -6px 0 12px; font-size: 12.5px; color: var(--ink-3); }
+  .tl-sum { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px;
+            margin: 2px 0 10px; font-size: 13px; color: var(--ink-2); }
+  .tl-sum b { color: var(--ink); font-size: 16px; }
+  .tl-bar { display: flex; width: 160px; height: 6px; border-radius: 3px; overflow: hidden;
+            background: var(--border); }
+  .tl-bar span { display: block; height: 100%; }
+  .tl-lg { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; }
+  .tl-week { display: grid; grid-template-columns: 108px 1fr; gap: 0 14px; }
+  .tl-rail { position: sticky; top: 8px; align-self: start; padding: 8px 0 12px; }
+  .tl-wk { font-weight: 700; font-size: 13px; font-variant-numeric: tabular-nums; }
+  .tl-wn { font-size: 12px; color: var(--ink-3); }
+  .tl-list { list-style: none; margin: 0; padding: 6px 0 14px 22px; border-left: 2px solid var(--border); }
+  .tl-item { position: relative; padding: 5px 0 9px; }
+  .tl-dot { position: absolute; left: -29px; top: 11px; width: 12px; height: 12px; border-radius: 50%;
+            background: var(--c-other); border: 2px solid var(--bg); box-shadow: 0 0 0 1px var(--border); }
+  .tl-item[data-cat="Price"] .tl-dot { background: var(--c-price); }
+  .tl-item[data-cat="Chain menu"] .tl-dot { background: var(--c-menu); }
+  .tl-item[data-cat="Promotion"] .tl-dot { background: var(--c-promo); }
+  .tl-head { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; font-size: 12px;
+             color: var(--ink-3); font-variant-numeric: tabular-nums; }
+  .tl-cat { font-weight: 600; }
+  .tl-item[data-cat="Price"] .tl-cat { color: var(--c-price); }
+  .tl-item[data-cat="Chain menu"] .tl-cat { color: var(--c-menu); }
+  .tl-item[data-cat="Promotion"] .tl-cat { color: var(--c-promo); }
+  .tl-title { display: block; font-size: 14px; font-weight: 600; color: var(--ink); margin-top: 1px;
+              line-height: 1.45; }
+  a.tl-title:hover { color: var(--accent); text-decoration: none; }
+  .tl-cmt { color: var(--ink-2); font-size: 12.5px; line-height: 1.55; margin-top: 2px;
+            display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .tl-arch { margin-top: 16px; }
+  .tl-arch .btog { margin: 6px 0; }
+  .tl-arch summary .when { color: var(--ink-3); font-weight: 400; font-size: 12px; margin-left: 8px; }
+
   /* ---- 모바일 ---- */
   @media (max-width: 640px) {
     .wrap { padding: 14px 10px 48px; }
@@ -165,6 +204,9 @@
     .tbl-wrap table { min-width: 560px; }
     details.mail summary { font-size: 12px; padding: 7px 10px; }
     .evt { flex-wrap: wrap; }
+    .tl-week { grid-template-columns: 1fr; }
+    .tl-rail { position: static; display: flex; gap: 8px; align-items: baseline; padding: 10px 0 2px; }
+    .tl-bar { width: 110px; }
   }
 </style>
 </head>
@@ -216,6 +258,16 @@
     <span class="fcount" id="repCount"></span>
   </div>
   <div id="repBody"></div>
+
+  <h2>브랜드 타임라인</h2>
+  <p class="tl-note">지금까지의 모든 리포트에서 이 브랜드로 수록된 기사를 하나로 합쳐 시간순으로 봅니다 — 같은 기사는 한 번만, 주(금~목) 단위로 묶어서.</p>
+  <div class="fbar">
+    <span id="tlSecChips"></span>
+    <select id="tlBrand" title="브랜드 선택"></select>
+    <span id="tlOrder" style="display:inline-flex; gap:6px"></span>
+  </div>
+  <div class="tl-sum" id="tlSum"></div>
+  <div id="tlBody"></div>
 
   <details class="sect">
     <summary>메일 발송 현황</summary>
@@ -608,6 +660,112 @@ function selectDay(k) {
 
   if (D.reports.length) { repopulate(); render(); }
   else document.getElementById("repBody").innerHTML = `<p class="muted">리포트 없음</p>`;
+})();
+
+// ---- 브랜드 타임라인 (전 리포트 행을 링크 기준 합산 → 브랜드별 전 기간 연대기 + Long 인사이트 아카이브) ----
+(function timeline() {
+  const T = D.timeline || [];
+  const SECS = ["T6 Burger", "QSR", "Others"];
+  const CATS = ["Price", "Chain menu", "Promotion", "other"];
+  const CAT_VAR = { "Price": "--c-price", "Chain menu": "--c-menu", "Promotion": "--c-promo", "other": "--c-other" };
+  const secLabel = s => (s === "T6 Burger" ? "T6" : s);
+  const chipsEl = document.getElementById("tlSecChips"), selBrand = document.getElementById("tlBrand"),
+        orderEl = document.getElementById("tlOrder"), sumEl = document.getElementById("tlSum"),
+        body = document.getElementById("tlBody");
+  const st = { sec: "all", brand: null, desc: true };
+
+  // 주간 창 = 금~목: 날짜가 속한 주의 금요일을 키로 쓴다
+  const weekOf = d => {
+    const dt = new Date(d + "T00:00:00");
+    const fri = new Date(dt); fri.setDate(dt.getDate() - ((dt.getDay() + 2) % 7));
+    const thu = new Date(fri); thu.setDate(fri.getDate() + 6);
+    return { key: dkey(fri), label: `${mdOf(dkey(fri))}~${mdOf(dkey(thu))}` };
+  };
+  const counts = {};
+  for (const x of T) (counts[x.s] = counts[x.s] || {})[x.b] = (counts[x.s][x.b] || 0) + 1;
+  const brandsIn = sec => Object.entries(counts[sec] || {})
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+
+  function rebuildBrandSel() {
+    const groups = st.sec === "all" ? SECS : [st.sec];
+    selBrand.innerHTML = groups.map(sec => {
+      const bs = brandsIn(sec);
+      return bs.length ? `<optgroup label="${esc(secLabel(sec))}">` +
+        bs.map(([b, n]) => `<option value="${esc(b)}">${esc(b)} (${n})</option>`).join("") + `</optgroup>` : "";
+    }).join("");
+    if (!st.brand || ![...selBrand.options].some(o => o.value === st.brand)) {
+      // 기본 선택: 메인 관심사인 T6에서 기사가 가장 많은 브랜드
+      const pref = brandsIn(st.sec === "all" ? "T6 Burger" : st.sec);
+      st.brand = (pref[0] || groups.flatMap(brandsIn)[0] || [null])[0];
+    }
+    selBrand.value = st.brand;
+  }
+
+  function archiveHtml() {
+    const secs = [];
+    for (const m of [...D.mails].sort((a, b) => (b.sent_at || "").localeCompare(a.sent_at || ""))) {
+      if (!m.long) continue;
+      for (const part of String(m.long).split(/\r?\n## +/).slice(1)) {
+        const nl = part.search(/\r?\n/);
+        if ((nl < 0 ? part : part.slice(0, nl)).trim() !== st.brand) continue;
+        const wm = m.subject.match(/\((\d+\/\d+~\d+\/\d+)\)/);
+        secs.push({ label: m.type === "weekly" ? `${wm ? wm[1] : ""} 주간` : `${mdOf(m.sent_at)} 일간`,
+                    when: m.sent_at ? m.sent_at.slice(0, 10) : "", body: nl < 0 ? "" : part.slice(nl) });
+      }
+    }
+    return `<details class="btog tl-arch"><summary>Long 인사이트 아카이브<span class="when">${secs.length}건 · 날짜별 브랜드 상세 서술</span></summary>
+      <div class="btog-body">${secs.length ? secs.map(s =>
+        `<details class="btog"><summary>${esc(s.label)}<span class="when">${esc(s.when)}</span></summary>
+         <div class="btog-body">${insightHtml(s.body)}</div></details>`).join("")
+        : `<p class="muted">이 브랜드를 다룬 Long 인사이트가 아직 없습니다.</p>`}</div></details>`;
+  }
+
+  function render() {
+    const rows = T.filter(x => x.b === st.brand && (st.sec === "all" || x.s === st.sec))
+      .sort((a, b) => st.desc ? b.d.localeCompare(a.d) : a.d.localeCompare(b.d));
+    if (!rows.length) {
+      sumEl.innerHTML = "";
+      body.innerHTML = `<p class="muted">이 브랜드로 수록된 기사가 없습니다.</p>`;
+      return;
+    }
+    const catN = {};
+    for (const x of rows) catN[x.c] = (catN[x.c] || 0) + 1;
+    const cats = [...CATS.filter(c => catN[c]), ...Object.keys(catN).filter(c => !CATS.includes(c))];
+    const lo = st.desc ? rows[rows.length - 1].d : rows[0].d, hi = st.desc ? rows[0].d : rows[rows.length - 1].d;
+    const colorOf = c => `var(${CAT_VAR[c] || "--c-other"})`;
+    sumEl.innerHTML = `<b>${esc(st.brand)}</b><span>${rows.length}건</span><span>${mdOf(lo)}~${mdOf(hi)}</span>` +
+      `<span class="tl-bar">${cats.map(c => `<span style="width:${100 * catN[c] / rows.length}%; background:${colorOf(c)}"></span>`).join("")}</span>` +
+      cats.map(c => `<span class="tl-lg"><span class="dot" style="background:${colorOf(c)}"></span>${esc(c)} ${catN[c]}</span>`).join("");
+    const groups = [];
+    for (const x of rows) {
+      const w = weekOf(x.d), g = groups[groups.length - 1];
+      if (g && g.key === w.key) g.items.push(x); else groups.push({ ...w, items: [x] });
+    }
+    body.innerHTML = groups.map(g => `<section class="tl-week">
+      <div class="tl-rail"><div class="tl-wk">${esc(g.label)}</div><div class="tl-wn">${g.items.length}건</div></div>
+      <ol class="tl-list">${g.items.map(x => `<li class="tl-item" data-cat="${esc(x.c)}"><span class="tl-dot"></span>
+        <div class="tl-head"><span>${esc(mdOf(x.d))}</span><span class="tl-cat">${esc(x.c)}</span>${st.sec === "all" ? `<span>${esc(secLabel(x.s))}</span>` : ""}</div>
+        ${x.l ? `<a class="tl-title" href="${esc(x.l)}" target="_blank" rel="noopener">${esc(x.t)}</a>` : `<div class="tl-title">${esc(x.t)}</div>`}
+        ${x.m ? `<div class="tl-cmt">${esc(x.m)}</div>` : ""}</li>`).join("")}</ol>
+    </section>`).join("") + archiveHtml();
+  }
+
+  function controls() {
+    chipsEl.innerHTML = [["all", "전체"], ...SECS.map(s => [s, secLabel(s)])].map(([v, l]) =>
+      `<button class="fchip${st.sec === v ? " on" : ""}" data-v="${esc(v)}">${esc(l)}</button>`).join("");
+    chipsEl.querySelectorAll(".fchip").forEach(b => b.onclick = () => {
+      st.sec = b.dataset.v; controls(); rebuildBrandSel(); render();
+    });
+    orderEl.innerHTML = [["desc", "최신순"], ["asc", "과거순"]].map(([v, l]) =>
+      `<button class="fchip${(st.desc ? "desc" : "asc") === v ? " on" : ""}" data-v="${v}">${l}</button>`).join("");
+    orderEl.querySelectorAll(".fchip").forEach(b => b.onclick = () => {
+      st.desc = b.dataset.v === "desc"; controls(); render();
+    });
+  }
+  selBrand.onchange = () => { st.brand = selBrand.value; render(); };
+
+  if (T.length) { controls(); rebuildBrandSel(); render(); }
+  else body.innerHTML = `<p class="muted">타임라인 데이터가 아직 없습니다 — 다음 실행의 대시보드 갱신 후 표시됩니다.</p>`;
 })();
 
 // ---- 메일 현황 ----
